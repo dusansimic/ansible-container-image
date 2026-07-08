@@ -1,0 +1,68 @@
+name: build-image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  PYTHON_TAG: 3.14.1-slim
+  # Newest bundled ansible major — also receives the unsuffixed "plain" tags.
+  LATEST_ANSIBLE_MAJOR: "14"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible_major: ["14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: |
+          buildah bud --platform linux/amd64 \
+            --build-arg PYTHON_TAG="$PYTHON_TAG" \
+            --build-arg ANSIBLE_MAJOR="${{ matrix.ansible_major }}" \
+            -t ansible-build .
+
+      - name: Login to GHCR
+        run: buildah login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
+
+      - name: Tag & push
+        env:
+          MAJ: ${{ matrix.ansible_major }}
+        run: |
+          set -euo pipefail
+
+          # Exact installed community-package version (ansible --version reports core, not this).
+          full=$(podman run --rm ansible-build pip show ansible | awk '/^Version:/{print $2}')
+          if [[ -z "$full" ]]; then
+            echo "could not determine installed ansible version" >&2
+            exit 1
+          fi
+
+          tags=()
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tags+=("main-$MAJ")
+            [[ "$MAJ" == "$LATEST_ANSIBLE_MAJOR" ]] && tags+=("main")
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            rel="${GITHUB_REF_NAME#v}"
+            tags+=("$rel-$MAJ" "latest-$MAJ" "$full")
+            [[ "$MAJ" == "$LATEST_ANSIBLE_MAJOR" ]] && tags+=("$rel" "latest")
+          else
+            echo "ref $GITHUB_REF produces no tags; nothing to push"
+            exit 0
+          fi
+
+          for t in "${tags[@]}"; do
+            buildah tag ansible-build "$IMAGE:$t"
+            buildah push "$IMAGE:$t"
+          done
+          printf 'pushed %s\n' "${tags[@]}"
