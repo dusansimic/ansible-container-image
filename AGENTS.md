@@ -90,6 +90,12 @@ Edit `.github/workflows/build.yml`:
   Pin tighter in the `Containerfile` if strict reproducibility is required.
 - Rebuild (re-push `main` / re-tag) to pick up base-image CVE patches.
 
+## Commits
+- **Conventional Commits** format (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`, …).
+- **One logical change per commit.** If a set of changes spans unrelated concerns,
+  split them into several focused commits rather than one large mixed commit.
+- Write commit messages with the `/caveman:caveman-commit` skill.
+
 ## CI
 `.github/workflows/build.yml`: matrix build over ansible majors with buildah,
 GHCR auth via the built-in `GITHUB_TOKEN` (needs `packages: write`). buildah and
