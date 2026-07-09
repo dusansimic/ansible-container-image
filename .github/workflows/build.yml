@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
 
           # Exact installed community-package version (ansible --version reports core, not this).
-          full=$(podman run --rm ansible-build pip show ansible | awk '/^Version:/{print $2}')
+          full=$(podman run --rm --entrypoint pip ansible-build show ansible | awk '/^Version:/{print $2}')
           if [[ -z "$full" ]]; then
             echo "could not determine installed ansible version" >&2
             exit 1
